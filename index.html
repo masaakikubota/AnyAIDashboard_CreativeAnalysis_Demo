@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Creative Tag Impact Dashboard v0.8</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg:#fbfcfe; --ink:#0f172a; --muted:#64748b; --card:#fff; --border:#e5e7eb; --accent:#0ea5e9; --accent2:#a855f7; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto; }
+    .wrap { max-width:1200px; margin:0 auto; padding:24px; }
+    .header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; flex-wrap:wrap; }
+    .title { font-size:22px; font-weight:800; }
+    .controls { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+    .seg { display:inline-flex; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    .seg button { padding:6px 10px; background:#fff; border:none; cursor:pointer; font-size:12px; }
+    .seg button.active { background:#0ea5e9; color:#fff; }
+    .grid { display:grid; gap:24px; grid-template-columns: 320px 1fr; align-items:stretch; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    .side, .main { height: calc(100vh - 112px); overflow:auto; }
+    .main { position: sticky; top: 24px; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:#f8fafc; cursor:pointer; font-size:13px; transition: box-shadow .25s; }
+    .chip.active { background:#eef2ff; border-color:#c7d2fe; color:#3730a3; }
+    .chip.small { padding:4px 8px; font-size:12px; }
+    .chip.pulse { animation: pulse 1.2s ease-out; box-shadow: 0 0 0 0 rgba(14,165,233,0.65); }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(14,165,233,0.65); }
+      70% { box-shadow: 0 0 0 12px rgba(14,165,233,0); }
+      100% { box-shadow: 0 0 0 0 rgba(14,165,233,0); }
+    }
+    .kpis { display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:12px; }
+    .kpi { background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .kpi .label { font-size:12px; color:var(--muted); }
+    .kpi .value { font-size:22px; font-weight:800; }
+    .note { color:var(--muted); font-size:12px; }
+    .section-title { margin:12px 0 8px; font-weight:700; }
+    .selected { display:flex; gap:8px; flex-wrap:wrap; }
+    .legend { color:var(--muted); font-size:12px; }
+    .radio { display:flex; gap:16px; }
+    .radio label { display:flex; align-items:center; gap:6px; }
+    .reco { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .reco-actions { margin-top:8px; display:flex; gap:8px; }
+    .btn { padding:6px 10px; border-radius:10px; border:1px solid var(--border); background:#0ea5e9; color:#fff; cursor:pointer; font-size:12px; }
+    .btn.secondary { background:#f8fafc; color:#0f172a; }
+    .switch { display:inline-flex; align-items:center; gap:8px; font-size:12px; }
+    .details { margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); }
+    .detail-item { display:flex; gap:12px; align-items:flex-start; margin:6px 0; }
+    .detail-tag { font-weight:700; min-width:160px; }
+    .detail-desc { color:var(--muted); font-size:12px; }
+    .match { margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); }
+    .match a { color:#0ea5e9; text-decoration:none; font-weight:700; }
+    .match .candidates { margin-top:6px; display:flex; flex-wrap:wrap; gap:8px; }
+    .match .cand { font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff; }
+    .dict { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+    .dict .item { background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .dict .item h4 { margin:0 0 8px; font-size:14px; }
+    .dict .kv { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto; }
+    .kv-row { display:flex; gap:8px; align-items:flex-start; }
+    .kv-label { min-width:120px; font-weight:600; }
+    .kv-desc { color:var(--muted); font-size:12px; }
+    .rankings { display:grid; gap:16px; grid-template-columns: repeat(3, 1fr); }
+    .rank { background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .rank h4 { margin:0 0 6px; font-size:14px; display:flex; justify-content:space-between; gap:8px; }
+    .rank h4 span { color:var(--muted); font-weight:500; font-size:12px; }
+    .rank .rows { max-height: 420px; overflow:auto; padding-right:6px; }
+    .rank .row { display:grid; grid-template-columns: 24px 1fr 72px; align-items:center; gap:8px; margin:6px 0; }
+    .rank .medal { width:20px; height:20px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:12px; color:white; flex-shrink:0; }
+    .gold { background:linear-gradient(135deg,#fbbf24,#fde68a); color:#92400e; }
+    .silver { background:linear-gradient(135deg,#9ca3af,#e5e7eb); color:#111827; }
+    .bronze { background:linear-gradient(135deg,#d97706,#fbbf24); color:#1f2937; }
+    .rank .bar { height:8px; background:#eef2ff; border-radius:999px; overflow:hidden; }
+    .rank .fill { height:100%; background:linear-gradient(90deg,#818cf8,#22d3ee); }
+    .rank .value { text-align:right; color:#0f172a; font-weight:700; }
+    @media (max-width: 1080px) {
+      .grid { grid-template-columns: 1fr; }
+      .main { position: static; height:auto; }
+      .side { height:auto; }
+      .dict { grid-template-columns: 1fr; }
+      .rankings { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title" id="ui-title">Creative Tag Impact Dashboard <span style="color:#94a3b8;font-weight:600;">v0.8</span></div>
+      <div class="controls">
+        <div class="radio" id="goal-radios">
+          <label><input type="radio" name="goal" value="Views_Lift_percentage" checked> <span data-i18n="goal.views">認知拡大（Views最大化）</span></label>
+          <label><input type="radio" name="goal" value="CTR_Lift_percentage"> <span data-i18n="goal.ctr">クリック獲得（CTR最大化）</span></label>
+          <label><input type="radio" name="goal" value="CVR_Lift_percentage"> <span data-i18n="goal.cvr">購入促進（CVR最大化）</span></label>
+        </div>
+        <div class="seg" id="lang-seg">
+          <button data-lang="ja" class="active">日本語</button>
+          <button data-lang="en">English</button>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="toggle-dict" checked>
+          <label for="toggle-dict" data-i18n="toggle.dict">辞書を表示</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <aside class="card side">
+        <div class="section-title" data-i18n="section.tags">タグカテゴリ</div>
+        <div class="note" data-i18n="note.left">左のタグはスクロールで探索。右側の結果は固定されます。</div>
+        <div id="filters"></div>
+      </aside>
+
+      <main class="card main">
+        <div class="kpis">
+          <div class="kpi"><div class="label" data-i18n="kpi.views">Views インパクト</div><div class="value" id="kpi-views">+0%</div></div>
+          <div class="kpi"><div class="label" data-i18n="kpi.ctr">CTR インパクト</div><div class="value" id="kpi-ctr">+0%</div></div>
+          <div class="kpi"><div class="label" data-i18n="kpi.cvr">CVR インパクト</div><div class="value" id="kpi-cvr">+0%</div></div>
+          <div class="kpi"><div class="label" data-i18n="kpi.gmv">GMV インパクト</div><div class="value" id="kpi-gmv">+0%</div></div>
+          <div class="kpi"><div class="label" data-i18n="kpi.ltv">LTV インパクト</div><div class="value" id="kpi-ltv">+0%</div></div>
+          <div class="kpi"><div class="label" data-i18n="kpi.overall">総合効果（掛け合わせ）</div><div class="value" id="kpi-overall">+0%</div></div>
+        </div>
+        <div style="height:360px; margin-top:12px;"><canvas id="radar"></canvas></div>
+        <div class="section-title" data-i18n="section.selected">選択タグ</div>
+        <div id="selected" class="selected"></div>
+        <div class="legend" data-i18n="legend">複数タグの組み合わせ効果は、重複を抑えるため <strong>乗算 × 減衰（α=0.9）</strong> で推定。</div>
+
+        <div class="section-title" data-i18n="section.reco">最善の組み合わせ（自動提案）</div>
+        <div class="note" data-i18n="note.reco">目的に対して、インパクトが最大となるタグセットを自動提案（カテゴリ重複を回避する貪欲探索）。</div>
+        <div id="recommendation" class="reco"></div>
+        <div class="reco-actions">
+          <button id="applyReco" class="btn" data-i18n="btn.apply">提案を適用</button>
+          <button id="clearSel" class="btn secondary" data-i18n="btn.clear">選択をクリア</button>
+        </div>
+
+        <div class="section-title" data-i18n="section.details">選択タグの説明</div>
+        <div id="selected-details" class="details"></div>
+
+        <div class="section-title" data-i18n="section.matches">一致する動画</div>
+        <div id="best-match" class="match"></div>
+      </main>
+    </div>
+
+    <div class="card" style="margin-top:24px;" id="dict-card">
+      <div class="section-title" data-i18n="section.dictionary">タグ辞書（意味と検出ヒント）</div>
+      <div class="dict" id="dictionary"></div>
+    </div>
+
+    <div class="card" style="margin-top:24px;">
+      <div class="section-title" data-i18n="section.rankings">目的別ランキング（トップ10表示／スクロールで全件）</div>
+      <div class="rankings" id="rankings"></div>
+    </div>
+  </div>
+
+  <script>
+    const effects = [{"Tag": "Subtitles=Bilingual", "category": "Subtitles", "value": "Bilingual", "Count": 91, "Views_Lift_percentage": 4.03, "Engagement_Lift_percentage": -0.23, "CTR_Lift_percentage": -1.88, "CVR_Lift_percentage": -1.4, "GMV_Lift_percentage": -0.04, "LTV_Lift_percentage": -0.7}, {"Tag": "Hashtag_Count=4-8", "category": "Hashtag_Count", "value": "4-8", "Count": 89, "Views_Lift_percentage": 2.36, "Engagement_Lift_percentage": 0.74, "CTR_Lift_percentage": -1.16, "CVR_Lift_percentage": -0.91, "GMV_Lift_percentage": -0.09, "LTV_Lift_percentage": -0.45}, {"Tag": "Duration_bucket=31-60s", "category": "Duration_bucket", "value": "31-60s", "Count": 75, "Views_Lift_percentage": -35.03, "Engagement_Lift_percentage": 5.79, "CTR_Lift_percentage": 1.84, "CVR_Lift_percentage": 1.09, "GMV_Lift_percentage": -7.94, "LTV_Lift_percentage": 0.55}, {"Tag": "Price_Shown_thb=0", "category": "Price_Shown_thb", "value": "0", "Count": 75, "Views_Lift_percentage": -12.1, "Engagement_Lift_percentage": -5.56, "CTR_Lift_percentage": -1.99, "CVR_Lift_percentage": -1.21, "GMV_Lift_percentage": -3.93, "LTV_Lift_percentage": -0.61}, {"Tag": "Format=Review", "category": "Format", "value": "Review", "Count": 62, "Views_Lift_percentage": -43.91, "Engagement_Lift_percentage": -1.98, "CTR_Lift_percentage": -2.28, "CVR_Lift_percentage": -1.61, "GMV_Lift_percentage": -12.19, "LTV_Lift_percentage": -0.81}, {"Tag": "Voiceover=Female", "category": "Voiceover", "value": "Female", "Count": 58, "Views_Lift_percentage": -34.5, "Engagement_Lift_percentage": 1.35, "CTR_Lift_percentage": 1.05, "CVR_Lift_percentage": 0.72, "GMV_Lift_percentage": -8.09, "LTV_Lift_percentage": 0.36}, {"Tag": "Discount_bucket=1-20%", "category": "Discount_bucket", "value": "1-20%", "Count": 25, "Views_Lift_percentage": -61.95, "Engagement_Lift_percentage": 8.93, "CTR_Lift_percentage": 5.69, "CVR_Lift_percentage": 3.82, "GMV_Lift_percentage": -12.62, "LTV_Lift_percentage": 1.91}, {"Tag": "Voiceover=None", "category": "Voiceover", "value": "None", "Count": 23, "Views_Lift_percentage": 87.8, "Engagement_Lift_percentage": 2.52, "CTR_Lift_percentage": 0.81, "CVR_Lift_percentage": 0.48, "GMV_Lift_percentage": 22.31, "LTV_Lift_percentage": 0.24}, {"Tag": "Price_Shown_thb=1", "category": "Price_Shown_thb", "value": "1", "Count": 22, "Views_Lift_percentage": 41.26, "Engagement_Lift_percentage": 18.96, "CTR_Lift_percentage": 13.07, "CVR_Lift_percentage": 11.85, "GMV_Lift_percentage": 19.2, "LTV_Lift_percentage": 5.93}, {"Tag": "Format=Promo", "category": "Format", "value": "Promo", "Count": 21, "Views_Lift_percentage": -44.94, "Engagement_Lift_percentage": 13.6, "CTR_Lift_percentage": 7.84, "CVR_Lift_percentage": 5.2, "GMV_Lift_percentage": -7.34, "LTV_Lift_percentage": 2.6}, {"Tag": "Discount_bucket=41%+", "category": "Discount_bucket", "value": "41%+", "Count": 14, "Views_Lift_percentage": -36.4, "Engagement_Lift_percentage": -6.45, "CTR_Lift_percentage": -5.06, "CVR_Lift_percentage": -3.48, "GMV_Lift_percentage": -11.71, "LTV_Lift_percentage": -1.74}, {"Tag": "Duration_bucket=61s+", "category": "Duration_bucket", "value": "61s+", "Count": 10, "Views_Lift_percentage": -50.78, "Engagement_Lift_percentage": -8.47, "CTR_Lift_percentage": -3.34, "CVR_Lift_percentage": -2.08, "GMV_Lift_percentage": -14.25, "LTV_Lift_percentage": -1.04}, {"Tag": "Voiceover=Male", "category": "Voiceover", "value": "Male", "Count": 9, "Views_Lift_percentage": -61.84, "Engagement_Lift_percentage": 3.53, "CTR_Lift_percentage": 2.26, "CVR_Lift_percentage": 1.52, "GMV_Lift_percentage": -14.32, "LTV_Lift_percentage": 0.76}, {"Tag": "Format=Unknown", "category": "Format", "value": "Unknown", "Count": 9, "Views_Lift_percentage": 439.02, "Engagement_Lift_percentage": -27.02, "CTR_Lift_percentage": -18.14, "CVR_Lift_percentage": -12.26, "GMV_Lift_percentage": 100.56, "LTV_Lift_percentage": -6.13}, {"Tag": "Duration_bucket=16-30s", "category": "Duration_bucket", "value": "16-30s", "Count": 8, "Views_Lift_percentage": -91.19, "Engagement_Lift_percentage": -6.61, "CTR_Lift_percentage": -5.71, "CVR_Lift_percentage": -3.95, "GMV_Lift_percentage": -25.76, "LTV_Lift_percentage": -1.98}, {"Tag": "Hashtag_Count=9+", "category": "Hashtag_Count", "value": "9+", "Count": 8, "Views_Lift_percentage": -26.3, "Engagement_Lift_percentage": -8.26, "CTR_Lift_percentage": -5.59, "CVR_Lift_percentage": -3.78, "GMV_Lift_percentage": -9.41, "LTV_Lift_percentage": -1.89}, {"Tag": "Voiceover=Unknown", "category": "Voiceover", "value": "Unknown", "Count": 7, "Views_Lift_percentage": 76.87, "Engagement_Lift_percentage": -23.96, "CTR_Lift_percentage": -13.39, "CVR_Lift_percentage": -8.84, "GMV_Lift_percentage": 12.59, "LTV_Lift_percentage": -4.42}, {"Tag": "Subtitles=EN", "category": "Subtitles", "value": "EN", "Count": 6, "Views_Lift_percentage": -61.13, "Engagement_Lift_percentage": 3.55, "CTR_Lift_percentage": 1.97, "CVR_Lift_percentage": 1.3, "GMV_Lift_percentage": -14.31, "LTV_Lift_percentage": 0.65}, {"Tag": "Discount_bucket=21-40%", "category": "Discount_bucket", "value": "21-40%", "Count": 6, "Views_Lift_percentage": -89.91, "Engagement_Lift_percentage": -0.65, "CTR_Lift_percentage": 0.94, "CVR_Lift_percentage": 0.73, "GMV_Lift_percentage": -21.93, "LTV_Lift_percentage": 0.37}, {"Tag": "Format=Vlog", "category": "Format", "value": "Vlog", "Count": 5, "Views_Lift_percentage": -57.02, "Engagement_Lift_percentage": 16.05, "CTR_Lift_percentage": 8.89, "CVR_Lift_percentage": 5.87, "GMV_Lift_percentage": -9.85, "LTV_Lift_percentage": 2.93}, {"Tag": "Duration_bucket=<=15s", "category": "Duration_bucket", "value": "<=15s", "Count": 4, "Views_Lift_percentage": 966.18, "Engagement_Lift_percentage": -74.09, "CTR_Lift_percentage": -45.53, "CVR_Lift_percentage": -30.44, "GMV_Lift_percentage": 218.71, "LTV_Lift_percentage": -15.22}, {"Tag": "CTA_Type=CommentKeyword", "category": "CTA_Type", "value": "CommentKeyword", "Count": 1, "Views_Lift_percentage": -99.51, "Engagement_Lift_percentage": 45.35, "CTR_Lift_percentage": 27.17, "CVR_Lift_percentage": 18.11, "GMV_Lift_percentage": -11.29, "LTV_Lift_percentage": 9.06}, {"Tag": "Hook=PatternBreak", "category": "Hook", "value": "PatternBreak", "label": "通説破壊", "Count": 64, "Views_Lift_percentage": 29.91, "Engagement_Lift_percentage": 21.93, "CTR_Lift_percentage": 25.12, "CVR_Lift_percentage": 13.95, "GMV_Lift_percentage": 17.94, "LTV_Lift_percentage": 6.98}, {"Tag": "Hook=ProblemRaise", "category": "Hook", "value": "ProblemRaise", "label": "問題提起", "Count": 40, "Views_Lift_percentage": -2.32, "Engagement_Lift_percentage": -2.24, "CTR_Lift_percentage": -2.27, "CVR_Lift_percentage": -2.97, "GMV_Lift_percentage": -2.8, "LTV_Lift_percentage": -1.48}, {"Tag": "Hook=SurpriseReveal", "category": "Hook", "value": "SurpriseReveal", "label": "驚きの開示", "Count": 54, "Views_Lift_percentage": 15.74, "Engagement_Lift_percentage": 11.31, "CTR_Lift_percentage": 13.08, "CVR_Lift_percentage": 6.51, "GMV_Lift_percentage": 8.82, "LTV_Lift_percentage": 3.26}, {"Tag": "Hook=BeforeAfter", "category": "Hook", "value": "BeforeAfter", "label": "ビフォーアフター", "Count": 42, "Views_Lift_percentage": 0.18, "Engagement_Lift_percentage": -0.36, "CTR_Lift_percentage": -0.14, "CVR_Lift_percentage": -1.65, "GMV_Lift_percentage": -1.19, "LTV_Lift_percentage": -0.83}, {"Tag": "Hook=ShockingFact", "category": "Hook", "value": "ShockingFact", "label": "数値ファクト一発", "Count": 47, "Views_Lift_percentage": 7.33, "Engagement_Lift_percentage": 5.0, "CTR_Lift_percentage": 5.93, "CVR_Lift_percentage": 2.1, "GMV_Lift_percentage": 3.4, "LTV_Lift_percentage": 1.05}, {"Tag": "Hook=Countdown", "category": "Hook", "value": "Countdown", "label": "カウントダウン", "Count": 47, "Views_Lift_percentage": 6.41, "Engagement_Lift_percentage": 4.31, "CTR_Lift_percentage": 5.15, "CVR_Lift_percentage": 1.62, "GMV_Lift_percentage": 2.82, "LTV_Lift_percentage": 0.81}, {"Tag": "KeyMessage=Price", "category": "KeyMessage", "value": "Price", "label": "価格訴求", "Count": 72, "Views_Lift_percentage": 27.2, "Engagement_Lift_percentage": 19.9, "CTR_Lift_percentage": 22.82, "CVR_Lift_percentage": 12.53, "GMV_Lift_percentage": 16.2, "LTV_Lift_percentage": 6.27}, {"Tag": "KeyMessage=Benefit", "category": "KeyMessage", "value": "Benefit", "label": "ベネフィット", "Count": 52, "Views_Lift_percentage": 0.17, "Engagement_Lift_percentage": -0.37, "CTR_Lift_percentage": -0.16, "CVR_Lift_percentage": -1.66, "GMV_Lift_percentage": -1.2, "LTV_Lift_percentage": -0.83}, {"Tag": "KeyMessage=Feature", "category": "KeyMessage", "value": "Feature", "label": "機能訴求", "Count": 63, "Views_Lift_percentage": 14.26, "Engagement_Lift_percentage": 10.19, "CTR_Lift_percentage": 11.82, "CVR_Lift_percentage": 5.74, "GMV_Lift_percentage": 7.87, "LTV_Lift_percentage": 2.87}, {"Tag": "KeyMessage=SocialProof", "category": "KeyMessage", "value": "SocialProof", "label": "社会的証明", "Count": 66, "Views_Lift_percentage": 18.42, "Engagement_Lift_percentage": 13.31, "CTR_Lift_percentage": 15.36, "CVR_Lift_percentage": 7.92, "GMV_Lift_percentage": 10.54, "LTV_Lift_percentage": 3.96}, {"Tag": "KeyMessage=LimitedTime", "category": "KeyMessage", "value": "LimitedTime", "label": "期間限定", "Count": 59, "Views_Lift_percentage": 9.46, "Engagement_Lift_percentage": 6.59, "CTR_Lift_percentage": 7.74, "CVR_Lift_percentage": 3.21, "GMV_Lift_percentage": 4.77, "LTV_Lift_percentage": 1.61}, {"Tag": "KeyMessage=Guarantee", "category": "KeyMessage", "value": "Guarantee", "label": "保証・返品", "Count": 59, "Views_Lift_percentage": 9.42, "Engagement_Lift_percentage": 6.57, "CTR_Lift_percentage": 7.71, "CVR_Lift_percentage": 3.2, "GMV_Lift_percentage": 4.75, "LTV_Lift_percentage": 1.6}, {"Tag": "CTA_Type=ShopNow", "category": "CTA_Type", "value": "ShopNow", "label": "今すぐ購入", "Count": 58, "Views_Lift_percentage": 1.56, "Engagement_Lift_percentage": 0.67, "CTR_Lift_percentage": 1.02, "CVR_Lift_percentage": -0.93, "GMV_Lift_percentage": -0.31, "LTV_Lift_percentage": -0.47}, {"Tag": "CTA_Type=LearnMore", "category": "CTA_Type", "value": "LearnMore", "label": "詳細を見る", "Count": 65, "Views_Lift_percentage": 10.1, "Engagement_Lift_percentage": 7.08, "CTR_Lift_percentage": 8.29, "CVR_Lift_percentage": 3.55, "GMV_Lift_percentage": 5.19, "LTV_Lift_percentage": 1.78}, {"Tag": "CTA_Type=DM", "category": "CTA_Type", "value": "DM", "label": "DM/チャット", "Count": 63, "Views_Lift_percentage": 7.77, "Engagement_Lift_percentage": 5.32, "CTR_Lift_percentage": 6.3, "CVR_Lift_percentage": 2.33, "GMV_Lift_percentage": 3.69, "LTV_Lift_percentage": 1.16}, {"Tag": "CTA_Type=LinkInBio", "category": "CTA_Type", "value": "LinkInBio", "label": "リンク（プロフィール）", "Count": 58, "Views_Lift_percentage": 0.67, "Engagement_Lift_percentage": 0.01, "CTR_Lift_percentage": 0.27, "CVR_Lift_percentage": -1.4, "GMV_Lift_percentage": -0.88, "LTV_Lift_percentage": -0.7}, {"Tag": "CTA_Type=AddToCart", "category": "CTA_Type", "value": "AddToCart", "label": "カートに追加", "Count": 54, "Views_Lift_percentage": -4.62, "Engagement_Lift_percentage": -3.97, "CTR_Lift_percentage": -4.23, "CVR_Lift_percentage": -4.18, "GMV_Lift_percentage": -4.29, "LTV_Lift_percentage": -2.09}, {"Tag": "CTA_Type=LineOfficial", "category": "CTA_Type", "value": "LineOfficial", "label": "LINE追加", "Count": 72, "Views_Lift_percentage": 19.94, "Engagement_Lift_percentage": 14.46, "CTR_Lift_percentage": 16.65, "CVR_Lift_percentage": 8.72, "GMV_Lift_percentage": 11.53, "LTV_Lift_percentage": 4.36}, {"Tag": "CTA_Type=AddFriend", "category": "CTA_Type", "value": "AddFriend", "label": "友だち追加", "Count": 52, "Views_Lift_percentage": -6.08, "Engagement_Lift_percentage": -5.06, "CTR_Lift_percentage": -5.47, "CVR_Lift_percentage": -4.94, "GMV_Lift_percentage": -5.23, "LTV_Lift_percentage": -2.47}, {"Tag": "CTA_Type=Subscribe", "category": "CTA_Type", "value": "Subscribe", "label": "チャンネル登録", "Count": 60, "Views_Lift_percentage": 3.74, "Engagement_Lift_percentage": 2.31, "CTR_Lift_percentage": 2.88, "CVR_Lift_percentage": 0.21, "GMV_Lift_percentage": 1.1, "LTV_Lift_percentage": 0.11}, {"Tag": "CTA_Type=CallNow", "category": "CTA_Type", "value": "CallNow", "label": "電話する", "Count": 53, "Views_Lift_percentage": -5.83, "Engagement_Lift_percentage": -4.87, "CTR_Lift_percentage": -5.26, "CVR_Lift_percentage": -4.81, "GMV_Lift_percentage": -5.07, "LTV_Lift_percentage": -2.41}, {"Tag": "CTA_Type=BookNow", "category": "CTA_Type", "value": "BookNow", "label": "予約する", "Count": 79, "Views_Lift_percentage": 29.84, "Engagement_Lift_percentage": 21.88, "CTR_Lift_percentage": 25.06, "CVR_Lift_percentage": 13.92, "GMV_Lift_percentage": 17.9, "LTV_Lift_percentage": 6.96}, {"Tag": "CTA_Type=GetCoupon", "category": "CTA_Type", "value": "GetCoupon", "label": "クーポン獲得", "Count": 53, "Views_Lift_percentage": -4.96, "Engagement_Lift_percentage": -4.22, "CTR_Lift_percentage": -4.51, "CVR_Lift_percentage": -4.35, "GMV_Lift_percentage": -4.5, "LTV_Lift_percentage": -2.18}, {"Tag": "CTA_Type=PreOrder", "category": "CTA_Type", "value": "PreOrder", "label": "事前予約/入荷通知", "Count": 58, "Views_Lift_percentage": 1.08, "Engagement_Lift_percentage": 0.31, "CTR_Lift_percentage": 0.61, "CVR_Lift_percentage": -1.19, "GMV_Lift_percentage": -0.62, "LTV_Lift_percentage": -0.59}];
+    const catalog = {"Subtitles": {"Bilingual": {"label": "字幕：二言語", "description": "画面内の字幕/テロップが2言語（例：タイ語＋英語）で併記される表現。視認性と越境性を両立。", "detection_hint": "OCRでタイ語文字とラテン文字がそれぞれ全テキストの20%以上"}, "EN": {"label": "字幕：EN", "description": "英語主体の字幕/テロップ。海外志向や越境EC向けに適合。", "detection_hint": "OCRでラテン文字比率が高い（>70%）"}, "TH": {"label": "字幕：TH", "description": "タイ語主体の字幕/テロップ。ローカルターゲットに最適。", "detection_hint": "OCRでタイ語文字比率が高い（>70%）"}, "None": {"label": "字幕なし", "description": "字幕・テロップの常時表示がない。映像/VOのみで伝える設計。", "detection_hint": "OCRの文字検出が極小（フレーム平均<5文字/秒）"}}, "Hashtag_Count": {"4-8": {"label": "#4–8", "description": "拡張発見性を狙った中程度のタグ量。", "detection_hint": "hashtags.length ∈ [4,8]"}, "9+": {"label": "#9+", "description": "大量タグで網羅を狙う設計。テロップとの冗長性に注意。", "detection_hint": "hashtags.length ≥ 9"}, "0": {"label": "#0", "description": "ハッシュタグ未使用。余計なノイズを避けてメッセージ集中。", "detection_hint": "basic_info.hashtags の件数==0"}, "1-3": {"label": "#1–3", "description": "主要タグのみの軽量設計。関連性が高いタグに限定。", "detection_hint": "hashtags.length ∈ [1,3]"}}, "Duration_bucket": {"31-60s": {"label": "尺：31–60s", "description": "中尺。デモ/比較/社会的証明を載せやすい。", "detection_hint": "30 < duration_seconds ≤ 60"}, "61s+": {"label": "尺：61s+", "description": "長尺。複数章立てやストーリー性重視。", "detection_hint": "duration_seconds > 60"}, "16-30s": {"label": "尺：16–30s", "description": "短尺。機能1〜2個＋CTAまで乗せやすい黄金帯。", "detection_hint": "15 < duration_seconds ≤ 30"}, "<=15s": {"label": "尺：<=15s", "description": "超短尺。冒頭インパクト勝負で離脱を抑える設計。", "detection_hint": "composition_details.duration_seconds ≤ 15"}, "Unknown": {"label": "尺：不明", "description": "メタデータや解析から尺が取得できなかったもの。", "detection_hint": "duration_seconds が欠損/解析不可"}}, "Price_Shown_thb": {"0": {"label": "価格表示なし", "description": "価格を画面/字幕で明示しない設計。理解負荷は下がるが購買誘導は弱め。", "detection_hint": "画面テキストに ฿/บาท/ราคา/% などが未検出"}, "1": {"label": "価格表示あり", "description": "価格（THB）や割引を明示。CVR向上に寄与しやすい。", "detection_hint": "正規表現 '(฿|บาท|ราคา|ลด|โปร|\\d+%)' の検出"}}, "Format": {"Review": {"label": "Review", "description": "ユーザー/インフルエンサーが体験談を語る。", "detection_hint": "字幕に 'รีวิว/レビュー' / 一人語りのフェイスカム"}, "Promo": {"label": "Promo", "description": "商品紹介/販促中心。価格/オファー訴求が強い。", "detection_hint": "字幕に 'โปร/ลด/ราคา/฿' 等の販促語彙の頻出"}, "Unknown": {"label": "Unknown", "description": "上記パターンに当てはまらないもの、分類不明。", "detection_hint": "分類ロジック外または情報不足"}, "Vlog": {"label": "Vlog", "description": "生活/日常導線の中で自然に商品露出。", "detection_hint": "一人称視点・日常シーン・移動カットが中心"}, "HowTo": {"label": "ハウツー/使い方", "description": "ステップで手順説明し、使用シーンを明確化。", "detection_hint": "字幕に 'Step 1' / 箇条書き / 手元アップの連続カット"}, "Comparison": {"label": "比較", "description": "A/B比較や旧製品 vs 新製品を並列提示。", "detection_hint": "字幕に 'vs' / '比較' / 二画面レイアウト"}, "Montage": {"label": "モンタージュ", "description": "BGMに合わせたショット連結でテンポ重視。", "detection_hint": "高テンポの連続カット（Shots/10s が高い）＋テロップ最小"}, "Expert_Explain": {"label": "専門家解説", "description": "専門家/権威が論理立てて解説する体裁。", "detection_hint": "人物肩書テロップ（Dr./PhD/教授 など）や白衣/オフィス背景"}, "Challenge": {"label": "チャレンジ", "description": "トレンド/UGC連動の挑戦系。参加/拡散を誘う。", "detection_hint": "ハッシュタグに #challenge / テンプレ音源 / ユーザー生成の再現映像"}}, "Voiceover": {"Female": {"label": "Female", "description": "女性声のナレーション/台詞が主体。", "detection_hint": "F0（基本周波数）分布が女性帯域中心"}, "None": {"label": "None", "description": "ボイスなし（BGMや環境音のみ）。", "detection_hint": "ASRで有声区間が極小、音楽検出のみ"}, "Male": {"label": "Male", "description": "男性声のナレーション/台詞が主体。", "detection_hint": "F0分布が男性帯域中心"}, "Unknown": {"label": "Unknown", "description": "話者属性が特定不能。", "detection_hint": "ASR/話者分離の信頼度が閾値未満"}, "TTS": {"label": "TTS", "description": "合成音声（Text-to-Speech）。均一な抑揚と無ノイズ。", "detection_hint": "フォルマントの規則性/機械的テンポ、メタでTTS指定"}, "Duo": {"label": "デュオ", "description": "2名以上の掛け合い。リズムよく情報を出せる。", "detection_hint": "話者分離でスピーカーIDが2以上"}}, "Discount_bucket": {"1-20%": {"label": "1-20%", "description": "", "detection_hint": ""}, "41%+": {"label": "41%+", "description": "", "detection_hint": ""}, "21-40%": {"label": "21-40%", "description": "", "detection_hint": ""}}, "CTA_Type": {"CommentKeyword": {"label": "CommentKeyword", "description": "", "detection_hint": ""}, "ShopNow": {"label": "今すぐ購入", "description": "購入を直接促す。『ซื้อเลย』", "detection_hint": "Shop now, ซื้อเลย"}, "LearnMore": {"label": "詳細を見る", "description": "詳細ページへ誘導。", "detection_hint": "Learn more"}, "DM": {"label": "DM/チャット", "description": "DMやチャットへ誘導。", "detection_hint": "DM, チャット"}, "LinkInBio": {"label": "リンク（プロフィール）", "description": "プロフィールのリンクを案内。", "detection_hint": "Link in bio"}, "AddToCart": {"label": "カートに追加", "description": "ECのカート行動。", "detection_hint": "Add to cart, ใส่ตะกร้า"}, "LineOfficial": {"label": "LINE追加", "description": "LINE公式追加。", "detection_hint": "เพิ่มเพื่อน LINE, Line OA"}, "AddFriend": {"label": "友だち追加", "description": "SNSの友だち登録。", "detection_hint": "Add friend"}, "Subscribe": {"label": "チャンネル登録", "description": "フォロー/購読。", "detection_hint": "Subscribe, フォロー"}, "CallNow": {"label": "電話する", "description": "電話CTA。", "detection_hint": "Call now"}, "BookNow": {"label": "予約する", "description": "来店/サービス予約。", "detection_hint": "Book now, 予約"}, "GetCoupon": {"label": "クーポン獲得", "description": "クーポン取得。", "detection_hint": "Coupon, คูปอง"}, "PreOrder": {"label": "事前予約/入荷通知", "description": "先行予約/通知。", "detection_hint": "Pre-order, แจ้งเตือน"}}, "Hook": {"PatternBreak": {"label": "通説破壊", "description": "視聴者の前提を壊す切り出し。『実は〇〇は間違い』など。", "detection_hint": "冒頭3秒の字幕/VOに逆説・否定表現"}, "ProblemRaise": {"label": "問題提起", "description": "悩みを直球で提示。『おむつ漏れで困ってない？』", "detection_hint": "疑問文・ネガティブ語彙"}, "SurpriseReveal": {"label": "驚きの開示", "description": "意外性の高い事実/結果を先出し。", "detection_hint": "『実は』『衝撃の』等"}, "BeforeAfter": {"label": "ビフォーアフター", "description": "使用前後の比較を冒頭に配置。", "detection_hint": "before/afterや対比映像"}, "ShockingFact": {"label": "数値ファクト一発", "description": "『99%が…』など定量ファクトで引き付け。", "detection_hint": "数値+%"}, "Countdown": {"label": "カウントダウン", "description": "『3,2,1…』で加速度を付ける。", "detection_hint": "1〜3のカウントダウン"}}, "KeyMessage": {"Price": {"label": "価格訴求", "description": "価格/割引/値引きを明示。", "detection_hint": "฿, บาท, %, ลด, โปร"}, "Benefit": {"label": "ベネフィット", "description": "生活上の便益を一言で。『夜通し漏れない』等。", "detection_hint": "ポジティブ帰結"}, "Feature": {"label": "機能訴求", "description": "具体的な機能や素材。『高吸収コア』等。", "detection_hint": "専門語+名詞"}, "SocialProof": {"label": "社会的証明", "description": "レビュー件数や受賞、星評価。", "detection_hint": "レビュー, ★, 受賞"}, "LimitedTime": {"label": "期間限定", "description": "『本日まで』『今だけ』など希少性。", "detection_hint": "期間, 限定, 今日"}, "Guarantee": {"label": "保証・返品", "description": "返金保証/交換など安心材料。", "detection_hint": "保証, 返品, 交換"}}};
+    const videos = [{"id": "7501999771415022856", "views": 33600.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Unknown", "Voiceover=None"]}, {"id": "7510087239913704724", "views": 18800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=1", "Format=Promo", "Voiceover=Female"]}, {"id": "7506448624092482823", "views": 97400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7399989310423911688", "views": 88000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7501558612800703762", "views": 633600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Female"]}, {"id": "7488294495671422209", "views": 14000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7502347218523917575", "views": 7100000.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=<=15s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7441863799306472711", "views": 437200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=None"]}, {"id": "7510098884585082132", "views": 10600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7362181931527621895", "views": 2600000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7342780170857647367", "views": 2900000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=<=15s", "Price_Shown_thb=0", "Format=Unknown"]}, {"id": "7499107088040201473", "views": 93700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7420621340174077192", "views": 429600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=<=15s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7488976458589736208", "views": 2600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Promo", "Voiceover=Female"]}, {"id": "7499018211048951048", "views": 207500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Female"]}, {"id": "7514380996188425479", "views": 656400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Duo"]}, {"id": "7501561938703371527", "views": 905200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo"]}, {"id": "7519757432105504007", "views": 285900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7517517372400422151", "views": 786.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7517516684932992272", "views": 158500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7514976965862886663", "views": 93200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Duo"]}, {"id": "7514975134218734849", "views": 4900.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=9+", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7514379917795052808", "views": 184400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Duo"]}, {"id": "7514378827858988306", "views": 1200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7514373972780272914", "views": 113000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Female"]}, {"id": "7514373230556220679", "views": 247900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7514365476777069831", "views": 1200000.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=None"]}, {"id": "7514361330044914952", "views": 2200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7514353458389060871", "views": 11700.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=16-30s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Female"]}, {"id": "7514351968874220807", "views": 93500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7514350146621050130", "views": 2900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7507524220423818503", "views": 306900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7507522930268458258", "views": 261800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Female"]}, {"id": "7507518849391152391", "views": 232.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Duo"]}, {"id": "7507517762525302023", "views": 810.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=None"]}, {"id": "7504572635511147792", "views": 324200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7504570696714997008", "views": 128100.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7504560232282983697", "views": 729200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7504559248576138513", "views": 250400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7504217947628440850", "views": 597.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Duo"]}, {"id": "7504215386494143751", "views": 8900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7504212732091157767", "views": 1200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7502350966482685202", "views": 7100000.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=<=15s", "Price_Shown_thb=0", "Format=Promo"]}, {"id": "7501978941683535105", "views": 445000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7501565866492972295", "views": 128500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7501560630722202898", "views": 519600.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Female"]}, {"id": "7499689846563196178", "views": 26500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=1", "Format=Promo", "Voiceover=Female"]}, {"id": "7499103122996858133", "views": 19100.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7499019205811899649", "views": 5800.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7498978232302161169", "views": 926800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7498243555887009044", "views": 1300000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7496803637226687751", "views": 102200.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Duo"]}, {"id": "7496801112771579143", "views": 396000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7494231262803021064", "views": 145900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7494230102293679367", "views": 115400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7494228960285379841", "views": 348700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=None"]}, {"id": "7494228039417466119", "views": 237300.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=HowTo", "Voiceover=Female"]}, {"id": "7493817189854727444", "views": 663800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=None"]}, {"id": "7493815679418715413", "views": 29500.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7491230770023959824", "views": 740300.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7489067632637775112", "views": 65000.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7489065694542253330", "views": 305100.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7489063858422680839", "views": 412800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7488547279134084370", "views": 14800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7488546293283933448", "views": 293500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7488292785292954897", "views": 46500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Duo"]}, {"id": "7488197176355507477", "views": 80100.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Promo"]}, {"id": "7486715094059978002", "views": 51200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=16-30s", "Price_Shown_thb=1", "Format=Promo", "Voiceover=None"]}, {"id": "7486713752621190408", "views": 369700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7486709725149547777", "views": 1200000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Female"]}, {"id": "7485987462280514817", "views": 85200.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Female"]}, {"id": "7485985450377694471", "views": 419100.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7485336719747779857", "views": 116900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7483826734366854407", "views": 8200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7483430491039780103", "views": 8400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=HowTo", "Voiceover=Female"]}, {"id": "7483089577402469640", "views": 983.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Female"]}, {"id": "7483087241498135826", "views": 88700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Duo"]}, {"id": "7482664326545837328", "views": 120800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7482641634010664199", "views": 557100.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Unknown", "Voiceover=None"]}, {"id": "7481231198577003793", "views": 173700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7481202534355455239", "views": 93100.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7481201391025900807", "views": 27600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Promo", "Voiceover=Duo"]}, {"id": "7481200661376421138", "views": 7600.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7481197936861269265", "views": 464800.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7481195874165509383", "views": 2500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7480824874940763408", "views": 2000.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=None"]}, {"id": "7480813358548045074", "views": 7700.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7480807539899239697", "views": 143900.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7480492029353479440", "views": 1900.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7480485798576409873", "views": 63500.0, "tags": ["Subtitles=TH", "Hashtag_Count=9+", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Vlog", "Voiceover=Female"]}, {"id": "7480479930468273416", "views": 51400.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=1", "Format=Review", "Voiceover=Female"]}, {"id": "7480106146322205953", "views": 257500.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7478549493194018049", "views": 193900.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7478548481754385665", "views": 173900.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=9+", "Duration_bucket=61s+", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}, {"id": "7477914980168338706", "views": 1200.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review"]}, {"id": "7477876395746577671", "views": 57800.0, "tags": ["Subtitles=TH", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=None"]}, {"id": "7476431230263627026", "views": 11600.0, "tags": ["Subtitles=Bilingual", "Hashtag_Count=4-8", "Duration_bucket=31-60s", "Price_Shown_thb=0", "Format=Review", "Voiceover=Female"]}];
+    const BASE = "https://www.tiktok.com/@mamypokothailand/video/";
+
+    // ===== i18n =====
+    const i18n = {
+      ja: {
+        "ui.title": "Creative Tag Impact Dashboard",
+        "goal.views": "認知拡大（Views最大化）",
+        "goal.ctr": "クリック獲得（CTR最大化）",
+        "goal.cvr": "購入促進（CVR最大化）",
+        "toggle.dict": "辞書を表示",
+        "section.tags": "タグカテゴリ",
+        "note.left": "左のタグはスクロールで探索。右側の結果は固定されます。",
+        "kpi.views": "Views インパクト",
+        "kpi.ctr": "CTR インパクト",
+        "kpi.cvr": "CVR インパクト",
+        "kpi.gmv": "GMV インパクト",
+        "kpi.ltv": "LTV インパクト",
+        "kpi.overall": "総合効果（掛け合わせ）",
+        "legend": "複数タグの組み合わせ効果は、重複を抑えるため <strong>乗算 × 減衰（α=0.9）</strong> で推定。",
+        "section.selected": "選択タグ",
+        "section.reco": "最善の組み合わせ（自動提案）",
+        "note.reco": "目的に対して、インパクトが最大となるタグセットを自動提案（カテゴリ重複を回避する貪欲探索）。",
+        "btn.apply": "提案を適用",
+        "btn.clear": "選択をクリア",
+        "section.details": "選択タグの説明",
+        "section.dictionary": "タグ辞書（意味と検出ヒント）",
+        "section.rankings": "目的別ランキング（トップ10表示／スクロールで全件）",
+        "section.matches": "一致する動画",
+        "rank.views": "認知拡大（Views）",
+        "rank.ctr": "クリック率（CTR）",
+        "rank.cvr": "購入率（CVR）",
+        "rank.gmv": "GMV",
+        "rank.ltv": "LTV",
+        "rank.eng": "エンゲージメント",
+        "rank.note": "Top 10（スクロールで全件）",
+        "match.noSel": "タグを選択すると動画リンクが表示されます。",
+        "match.none": "一致する動画が見つかりません。"
+      },
+      en: {
+        "ui.title": "Creative Tag Impact Dashboard",
+        "goal.views": "Awareness (Maximize Views)",
+        "goal.ctr": "Click Acquisition (Maximize CTR)",
+        "goal.cvr": "Purchase (Maximize CVR)",
+        "toggle.dict": "Show dictionary",
+        "section.tags": "Tag Categories",
+        "note.left": "Scroll the tags on the left. The results on the right stay fixed.",
+        "kpi.views": "Views Impact",
+        "kpi.ctr": "CTR Impact",
+        "kpi.cvr": "CVR Impact",
+        "kpi.gmv": "GMV Impact",
+        "kpi.ltv": "LTV Impact",
+        "kpi.overall": "Overall Effect (Multiplicative)",
+        "legend": "Combined effect of multiple tags is estimated by <strong>multiplicative model with attenuation (α=0.9)</strong>.",
+        "section.selected": "Selected Tags",
+        "section.reco": "Optimal Combination (Auto)",
+        "note.reco": "Suggests a tag set that maximizes the selected objective (greedy search avoiding category duplicates).",
+        "btn.apply": "Apply Suggestions",
+        "btn.clear": "Clear Selection",
+        "section.details": "Descriptions of Selected Tags",
+        "section.dictionary": "Tag Dictionary (Meaning & Detection Hints)",
+        "section.rankings": "Rankings by Objective (Top 10 shown; scroll for all)",
+        "section.matches": "Best-matching video",
+        "rank.views": "Awareness (Views)",
+        "rank.ctr": "Click-through Rate (CTR)",
+        "rank.cvr": "Conversion Rate (CVR)",
+        "rank.gmv": "GMV",
+        "rank.ltv": "LTV",
+        "rank.eng": "Engagement",
+        "rank.note": "Top 10 (scroll for all)",
+        "match.noSel": "Select tags to see matching video links.",
+        "match.none": "No matching videos found."
+      }
+    };
+
+    // English label/description mapping (same as v0.7)
+    const enLabelMap = {
+      "Subtitles": {"Bilingual":"Subtitles: Bilingual","EN":"Subtitles: EN","None":"No Subtitles","TH":"Subtitles: TH"},
+      "Hashtag_Count": {"0":"#0","1-3":"#1–3","4-8":"#4–8","9+":"#9+"},
+      "Duration_bucket": {"<=15s":"Duration: <=15s","16-30s":"Duration: 16–30s","31-60s":"Duration: 31–60s","61s+":"Duration: 61s+","Unknown":"Duration: Unknown"},
+      "Price_Shown_thb": {"0":"Price not shown","1":"Price shown"},
+      "Format": {"Challenge":"Challenge","Comparison":"Comparison","Expert_Explain":"Expert Explain","HowTo":"How-to / Usage","Montage":"Montage","Promo":"Promo","Review":"Review","Unknown":"Unknown","Vlog":"Vlog"},
+      "Voiceover": {"Duo":"Duo","Female":"Female","Male":"Male","None":"None","TTS":"TTS","Unknown":"Unknown"}
+    };
+    const enDescMap = {
+      "Subtitles": {
+        "Bilingual":"On-screen captions in two languages (e.g., TH+EN). Good visibility and cross-border reach.",
+        "EN":"English captions as the primary language.",
+        "None":"No persistent captions/typography. Message relies on visuals/VO.",
+        "TH":"Thai captions as the primary language."
+      },
+      "Hashtag_Count": {
+        "0":"No hashtags used; focused messaging with minimal noise.",
+        "1-3":"Lightweight; only core hashtags.",
+        "4-8":"Medium volume for broader discovery.",
+        "9+":"High volume for maximum coverage; watch out for redundancy."
+      },
+      "Duration_bucket": {
+        "<=15s":"Very short; win attention up-front.",
+        "16-30s":"Short; sweet spot to include 1–2 features and a CTA.",
+        "31-60s":"Mid-length; room for demo/comparison/social proof.",
+        "61s+":"Long; story-driven with multiple beats.",
+        "Unknown":"Duration not available or could not be parsed."
+      },
+      "Price_Shown_thb": {
+        "0":"Price not explicitly shown on screen/subtitles.",
+        "1":"Price (THB) or discount clearly shown; tends to help CVR."
+      },
+      "Format": {
+        "Challenge":"Trend/UGC-style challenge inviting participation.",
+        "Comparison":"Side-by-side A/B or old vs new.",
+        "Expert_Explain":"Authoritative expert explains logically.",
+        "HowTo":"Step-by-step demonstration of usage.",
+        "Montage":"Fast-cut montage synced to music.",
+        "Promo":"Product-focused promotion with offers.",
+        "Review":"User/influencer shares first-hand experience.",
+        "Unknown":"Doesn’t fit predefined patterns.",
+        "Vlog":"Day-in-the-life style with natural product placement."
+      },
+      "Voiceover": {
+        "Duo":"Two or more speakers in dialogue.",
+        "Female":"Female voiceover.",
+        "Male":"Male voiceover.",
+        "None":"No voiceover (music/ambient only).",
+        "TTS":"Synthetic Text-to-Speech voice.",
+        "Unknown":"Speaker attributes not identifiable."
+      }
+    };
+
+    let currentLang = 'ja';
+
+    function t(key) {
+      return (i18n[currentLang] && i18n[currentLang][key]) || (i18n['en'][key] || key);
+    }
+
+    function applyLanguage() {
+      document.querySelector('#ui-title').childNodes[0].textContent = t('ui.title') + ' ';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.innerHTML = t(key);
+      });
+      buildFilters();
+      showRecommendation(currentGoal);
+      render();
+      buildDictionary();
+      buildRankings();
+    }
+
+    // ===== helpers for labels/descriptions =====
+    const labelOf = (cat, val) => {
+      if (currentLang === 'en') return (enLabelMap[cat] && enLabelMap[cat][val]) || (catalog[cat] && catalog[cat][val] && catalog[cat][val].label) || val;
+      return (catalog[cat] && catalog[cat][val] && catalog[cat][val].label) || val;
+    };
+    const descOf = (cat, val) => {
+      if (currentLang === 'en') return (enDescMap[cat] && enDescMap[cat][val]) || (catalog[cat] && catalog[cat][val] && catalog[cat][val].description) || '';
+      return (catalog[cat] && catalog[cat][val] && catalog[cat][val].description) || '';
+    };
+    const hintOf = (cat, val) => (catalog[cat] && catalog[cat][val] && catalog[cat][val].detection_hint) || '';
+
+    // group by category
+    const byCat = effects.reduce((acc, e) => { (acc[e.category] ||= []).push(e); return acc; }, {});
+
+    const filtersEl = document.getElementById('filters');
+    const selected = new Set();
+    let currentGoal = 'Views_Lift_percentage';
+    let currentReco = [];
+    const chipsMap = new Map(); // Tag -> chip element
+
+    function buildFilters() {
+      filtersEl.innerHTML = '';
+      chipsMap.clear();
+      for (const cat of Object.keys(byCat)) {
+        const box = document.createElement('div'); box.style.marginBottom='12px';
+        const title = document.createElement('div'); title.textContent = cat; title.style.margin='6px 0'; title.style.fontWeight='700';
+        box.appendChild(title);
+        const wrap = document.createElement('div'); wrap.className='chips';
+        byCat[cat].sort((a,b)=>b.Count-a.Count).forEach(e => {
+          const chip = document.createElement('div'); chip.className='chip'; 
+          chip.textContent = labelOf(e.category, e.value);
+          const desc = descOf(e.category, e.value);
+          if (desc) chip.title = desc;
+          const key = e.Tag;
+          chip.addEventListener('click', ()=>{
+            if (selected.has(key)) { selected.delete(key); chip.classList.remove('active'); }
+            else { selected.add(key); chip.classList.add('active'); }
+            render();
+          });
+          chipsMap.set(key, chip);
+          if (selected.has(key)) chip.classList.add('active');
+          wrap.appendChild(chip);
+        });
+        box.appendChild(wrap);
+        filtersEl.appendChild(box);
+      }
+    }
+
+    // Radar
+    const radarCtx = document.createElement('canvas').getContext('2d');
+    document.getElementById('radar').replaceWith(radarCtx.canvas);
+    radarCtx.canvas.id = 'radar';
+    const radarChart = new Chart(radarCtx, {
+      type: 'radar',
+      data: {
+        labels: ['認知（Views）','CTR','CVR','GMV','LTV','Engagement'],
+        datasets: [
+          { label: '選択タグの組み合わせ', data: [50,50,50,50,50,50], borderColor:'#334155', backgroundColor:'rgba(51,65,85,.1)' },
+          { label: '平均パフォーマンス', data: [50,50,50,50,50,50], borderColor:'#cbd5e1', backgroundColor:'rgba(203,213,225,.2)' }
+        ]
+      },
+      options: { scales: { r: { beginAtZero:true, max: 100 } }, plugins: { legend: { position:'top', align:'start' } } }
+    });
+
+    const attenuation = 0.9;
+    function combinedLift(lifts) {
+      let factor = 1.0;
+      lifts.forEach(l => { factor *= (1 + (l/100) * attenuation); });
+      return (factor - 1) * 100;
+    }
+    const fmt = (x)=> (Math.round(x)>=0?'+':'') + Math.round(x) + '%';
+    const toRadar = (imp) => Math.max(0, Math.min(100, 50 + imp/2));
+
+    function render() {
+      const chosen = effects.filter(e => selected.has(e.Tag));
+
+      const agg = (key) => combinedLift(chosen.map(e => Number(e[key]||0)));
+      const v = agg('Views_Lift_percentage');
+      const ctr = agg('CTR_Lift_percentage');
+      const cvr = agg('CVR_Lift_percentage');
+      const gmv = agg('GMV_Lift_percentage');
+      const ltv = agg('LTV_Lift_percentage');
+      const eng = agg('Engagement_Lift_percentage');
+
+      document.getElementById('kpi-views').textContent = fmt(v);
+      document.getElementById('kpi-ctr').textContent = fmt(ctr);
+      document.getElementById('kpi-cvr').textContent = fmt(cvr);
+      document.getElementById('kpi-gmv').textContent = fmt(gmv);
+      document.getElementById('kpi-ltv').textContent = fmt(ltv);
+      const overall = combinedLift([v, ctr, cvr]);
+      document.getElementById('kpi-overall').textContent = fmt(overall);
+
+      // selected chips
+      const selectedEl = document.getElementById('selected');
+      selectedEl.innerHTML = '';
+      chosen.forEach(e => {
+        const c=document.createElement('div'); c.className='chip small active'; c.textContent=labelOf(e.category,e.value);
+        c.title = descOf(e.category,e.value);
+        c.addEventListener('click', () => {
+          selected.delete(e.Tag);
+          const left = chipsMap.get(e.Tag);
+          if (left) left.classList.remove('active');
+          render();
+        });
+        selectedEl.appendChild(c);
+      });
+
+      // details
+      const details = document.getElementById('selected-details');
+      details.innerHTML = '';
+      chosen.forEach(e => {
+        const item = document.createElement('div'); item.className='detail-item';
+        const name = document.createElement('div'); name.className='detail-tag'; name.textContent = labelOf(e.category,e.value);
+        const desc = document.createElement('div'); desc.className='detail-desc';
+        const d = descOf(e.category,e.value); const h = hintOf(e.category,e.value);
+        const sep = currentLang==='en' ? ' / Detect: ' : ' / 検出: ';
+        desc.textContent = d + (h ? sep + h : '');
+        item.appendChild(name); item.appendChild(desc);
+        details.appendChild(item);
+      });
+
+      // Best matching video links
+      buildBestMatch(chosen.map(e => e.Tag));
+
+      // Radar
+      radarChart.data.datasets[0].data = [toRadar(v), toRadar(ctr), toRadar(cvr), toRadar(gmv), toRadar(ltv), toRadar(eng)];
+      radarChart.update();
+    }
+
+    function buildBestMatch(selectedTags) {
+      const box = document.getElementById('best-match');
+      box.innerHTML = '';
+      if (!selectedTags || selectedTags.length === 0) { box.textContent = t('match.noSel'); return; }
+      const s = new Set(selectedTags);
+      const scored = videos.map(v => {
+        let m=0;
+        v.tags.forEach(t=>{ if(s.has(t)) m++; });
+        return { id:v.id, views:v.views, tags:v.tags, match:m };
+      }).filter(x => x.match>0).sort((a,b)=> b.match - a.match || b.views - a.views);
+      if (scored.length === 0) { box.textContent = t('match.none'); return; }
+      const top = scored[0];
+      const a = document.createElement('a'); a.href = BASE + top.id; a.target = "_blank";
+      a.textContent = BASE + top.id;
+      const p = document.createElement('div');
+      p.appendChild(a);
+      const small = document.createElement('div'); small.className='note';
+      small.textContent = (currentLang==='en' ? 'Matched tags: ' : '一致タグ: ') + top.tags.filter(t=>s.has(t)).join(', ');
+      p.appendChild(small);
+      box.appendChild(p);
+
+      // candidates (up to 3 more)
+      const cands = document.createElement('div'); cands.className='candidates';
+      scored.slice(1,4).forEach(v => {
+        const c = document.createElement('a'); c.className='cand'; c.href = BASE + v.id; c.target="_blank";
+        c.textContent = v.id;
+        c.title = (currentLang==='en' ? 'Matched tags: ' : '一致タグ: ') + v.tags.filter(t=>s.has(t)).join(', ');
+        cands.appendChild(c);
+      });
+      if (cands.childNodes.length>0) box.appendChild(cands);
+    }
+
+    // Greedy recommendation, showRecommendation, applyRecommendation, dictionary, rankings same as before
+    function recommend(goalKey, maxK=5, minGain=1) {
+      const available = effects.slice().sort((a,b)=> Number(b[goalKey]||0) - Number(a[goalKey]||0));
+      const usedCats = new Set();
+      const picks = [];
+      let factor = 1.0;
+      for (const e of available) {
+        if (usedCats.has(e.category)) continue;
+        const candidateFactor = factor * (1 + (Number(e[goalKey]||0)/100) * attenuation);
+        const gain = (candidateFactor - factor) * 100;
+        if (gain > minGain) {
+          picks.push(e); usedCats.add(e.category); factor = candidateFactor;
+          if (picks.length >= maxK) break;
+        }
+      }
+      return picks;
+    }
+
+    function showRecommendation(goalKey) {
+      const box = document.getElementById('recommendation');
+      box.innerHTML = '';
+      currentReco = recommend(goalKey);
+      currentReco.forEach(e => {
+        const chip = document.createElement('div'); chip.className='chip active'; 
+        chip.textContent = labelOf(e.category, e.value);
+        chip.title = descOf(e.category, e.value);
+        box.appendChild(chip);
+      });
+    }
+
+    function applyRecommendation() {
+      selected.clear();
+      currentReco.forEach(p => selected.add(p.Tag));
+      chipsMap.forEach((chip, tag) => {
+        if (selected.has(tag)) { chip.classList.add('active','pulse'); setTimeout(()=>chip.classList.remove('pulse'), 1200); }
+        else { chip.classList.remove('active'); }
+      });
+      render();
+    }
+
+    function buildDictionary() {
+      const dictEl = document.getElementById('dictionary'); dictEl.innerHTML = '';
+      const cats = Object.keys(catalog);
+      cats.forEach(cat => {
+        const card = document.createElement('div'); card.className='item';
+        const h = document.createElement('h4'); h.textContent = cat; card.appendChild(h);
+        const wrap = document.createElement('div'); wrap.className='kv';
+        const entries = Object.entries(catalog[cat]).sort((a,b)=> a[0].localeCompare(b[0]));
+        entries.forEach(([val, meta]) => {
+          const row = document.createElement('div'); row.className='kv-row';
+          const label = document.createElement('div'); label.className='kv-label'; label.textContent = labelOf(cat, val);
+          const desc = document.createElement('div'); desc.className='kv-desc'; 
+          const d = descOf(cat, val); const hnt = hintOf(cat, val);
+          const sep = currentLang==='en' ? ' / Detect: ' : ' / 検出: ';
+          desc.textContent = d + (hnt ? sep + hnt : '');
+          row.appendChild(label); row.appendChild(desc);
+          wrap.appendChild(row);
+        });
+        card.appendChild(wrap);
+        dictEl.appendChild(card);
+      });
+    }
+
+    function buildRankings() {
+      const rankEl = document.getElementById('rankings'); rankEl.innerHTML = '';
+      const metrics = [
+        ['Views_Lift_percentage', 'rank.views'],
+        ['CTR_Lift_percentage', 'rank.ctr'],
+        ['CVR_Lift_percentage', 'rank.cvr'],
+        ['GMV_Lift_percentage', 'rank.gmv'],
+        ['LTV_Lift_percentage', 'rank.ltv'],
+        ['Engagement_Lift_percentage', 'rank.eng']
+      ];
+      metrics.forEach(([key, titleKey]) => {
+        const card = document.createElement('div'); card.className='rank';
+        const h = document.createElement('h4'); h.innerHTML = t(titleKey) + '<span>'+ t('rank.note') +'</span>'; card.appendChild(h);
+        const rows = document.createElement('div'); rows.className='rows';
+        const arr = effects.slice().sort((a,b) => {
+          const au = String(a.value).toLowerCase().includes('unknown') || a.value==='Unknown';
+          const bu = String(b.value).toLowerCase().includes('unknown') || b.value==='Unknown';
+          if (au !== bu) return au ? 1 : -1;
+          return Number(b[key]||0) - Number(a[key]||0);
+        });
+        const maxAbs = Math.max(5, ...arr.map(e => Math.abs(Number(e[key]||0))));
+        arr.forEach((e, idx) => {
+          const row = document.createElement('div'); row.className='row';
+          const m = document.createElement('div'); m.className='medal ' + (idx===0?'gold': idx===1?'silver': idx===2?'bronze':'');
+          m.textContent = idx<3 ? (idx+1) : '';
+          row.appendChild(m);
+          const labelWrap = document.createElement('div');
+          const label = document.createElement('div'); label.textContent = labelOf(e.category, e.value); label.title = descOf(e.category, e.value);
+          const bar = document.createElement('div'); bar.className='bar';
+          const fill = document.createElement('div'); fill.className='fill';
+          const pct = Number(e[key]||0);
+          fill.style.width = (Math.abs(pct) / maxAbs * 100) + '%';
+          fill.style.background = pct >= 0 ? 'linear-gradient(90deg,#22c55e,#10b981)' : 'linear-gradient(90deg,#f87171,#fb923c)';
+          bar.appendChild(fill);
+          labelWrap.appendChild(label);
+          labelWrap.appendChild(bar);
+          row.appendChild(labelWrap);
+          const val = document.createElement('div'); val.className='value'; val.textContent = (pct>=0?'+':'') + pct.toFixed(1) + '%';
+          row.appendChild(val);
+          rows.appendChild(row);
+        });
+        card.appendChild(rows);
+        rankEl.appendChild(card);
+      });
+    }
+
+    // Goal radio -> auto-apply recommendation & update cards
+    document.querySelectorAll('input[name="goal"]').forEach(r => r.addEventListener('change', (ev) => {
+      currentGoal = ev.target.value;
+      showRecommendation(currentGoal);
+      applyRecommendation();
+    }));
+
+    // Buttons
+    document.getElementById('applyReco').addEventListener('click', () => { applyRecommendation(); });
+    document.getElementById('clearSel').addEventListener('click', () => { 
+      selected.clear(); 
+      chipsMap.forEach(ch => ch.classList.remove('active'));
+      render(); 
+    });
+
+    // Language toggle
+    document.querySelectorAll('#lang-seg button').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('#lang-seg button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentLang = btn.getAttribute('data-lang');
+      applyLanguage();
+    }));
+
+    // Dictionary toggle
+    const dictCard = document.getElementById('dict-card');
+    document.getElementById('toggle-dict').addEventListener('change', (e) => {
+      dictCard.style.display = e.target.checked ? '' : 'none';
+    });
+
+    // Initial
+    buildFilters();
+    showRecommendation(currentGoal);
+    applyRecommendation();
+    buildDictionary();
+    buildRankings();
+  </script>
+</body>
+</html>
